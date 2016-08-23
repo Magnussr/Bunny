@@ -70,10 +70,24 @@ void GameManager::createOpenGLContext() {
 }
 
 void GameManager::setOpenGLStates() {
+	/* glEnable lets me use GL capabilities glEnable(What GL capabiliti i want to use); */
+	/* GL_DEPTH_TEST turns on the depth test that checks each fragmet on the screen against the depth buffer
+	if the fragment should get drawn */
 	glEnable(GL_DEPTH_TEST);
+	/* glDepthFunc specify the value used for depth buffer compairisons. Compare each incoming pixel depth value with the depth value present in the depth buffer.
+	glDepthFunc(How you want the fragment to pass the dept test)
+	GL_LEQUAL lets the fragment pass if it Passes if the incoming depth value is less than or equal to the stored depth value.*/
 	glDepthFunc(GL_LEQUAL);
+	/* GL_CULL_FACE enables us to use glCullFace. */
 	glEnable(GL_CULL_FACE);
+	/* glCullFace cull polygons based on their winding in window coordinates this tells the renderer that it doesn't need to render bouth faces of a triangle.
+	So we can save over 50% of performance on rendering
+	glCullFace lets me use GL CullFace abilities
+	glCullFace(What GL capabiliti i want to use);
+	GL_BACk removes all triangels that you don't see infront of the view */
 	glCullFace(GL_BACK);
+	/* glClearColor is the color of the screen
+	glClearColor(Red,Green,Blue,Transparency) */
 	glClearColor(0.0, 0.0, 0.5, 1.0);
 }
 
@@ -110,6 +124,9 @@ void GameManager::createVAO() {
 	  * FIXME 1: Uncomment this part once you have read in the normals properly
 	  * using the model loader
 	  */
+
+
+
 	//model->getNormals()->bind();
 	//program->setAttributePointer("in_Normal", 3);
 	CHECK_GL_ERROR();
@@ -161,7 +178,8 @@ void GameManager::render() {
 	//Get elapsed time
 	double elapsed = my_timer.elapsedAndRestart();
 	float rotate_degrees = static_cast<float>(elapsed) * 90.0f;
-	//Clear screen, and set the correct program
+	/*glClear clears the screen by setting the bitplane area of the window to values previouly selected by the 4 different GL_BUFFER_BIT.
+	glClear(What buffer to be clear and sett back to preset values)*/
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	program->use();
 	
