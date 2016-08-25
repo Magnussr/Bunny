@@ -29,6 +29,15 @@ GameManager::~GameManager() {
 }
 
 void GameManager::createOpenGLContext() {
+
+	/* FIXME 1: Set which version of OpenGL to use here (3.3), and allocate the correct number
+	of bits for the different color components and depth buffer, etc. */
+
+	/* SDL_GL_SetAttribute function is used to set an OpenGL window attribute before
+	window creation.
+	SDL_GL_SetAttribute(SDL_GLattr attr, int value):int
+	SDL_GL_SetAttribute(An enumeration of OpenGL configuration attributes, How many bits of memory a int value) */
+
 	//Set OpenGL major an minor versions
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 	SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -40,7 +49,8 @@ void GameManager::createOpenGLContext() {
 	SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8); // Use framebuffer with 8 bit for green
 	SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8); // Use framebuffer with 8 bit for blue
 	SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8); // Use framebuffer with 8 bit for alpha
-
+	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+	SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 4);
 
 	// Initalize video
 	main_window = SDL_CreateWindow("Westerdals - PG6200 Example OpenGL Program", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -92,8 +102,7 @@ void GameManager::setOpenGLStates() {
 }
 
 void GameManager::createMatrices() {
-	projection_matrix = glm::perspective(45.0f,
-			window_width / (float) window_height, 1.0f, 10.f);
+	projection_matrix = glm::perspective(45.0f, window_width / (float) window_height, 1.0f, 10.f);
 	model_matrix = glm::scale(glm::mat4(1.0f), glm::vec3(3));
 	view_matrix = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -5.0f));
 }
@@ -120,15 +129,13 @@ void GameManager::createVAO() {
 	model->getVertices()->bind();
 	program->setAttributePointer("in_Position", 3);
 	CHECK_GL_ERROR();
+
 	/**
 	  * FIXME 1: Uncomment this part once you have read in the normals properly
 	  * using the model loader
 	  */
-
-
-
-	//model->getNormals()->bind();
-	//program->setAttributePointer("in_Normal", 3);
+	model->getNormals()->bind();
+	program->setAttributePointer("in_Normal", 3);
 	CHECK_GL_ERROR();
 	
 	//Unbind VBOs and VAO
@@ -166,8 +173,8 @@ void GameManager::renderMeshRecursive(MeshPart& mesh, const std::shared_ptr<Prog
 	  * FIXME 1: Uncomment once you have enabled normal loading etc.
 	  * and use of normals in your shader
 	  */
-	//glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(modelview_matrix)));
-	//glUniformMatrix3fv(program->getUniform("normal_matrix"), 1, 0, glm::value_ptr(normal_matrix));
+	glm::mat3 normal_matrix = glm::transpose(glm::inverse(glm::mat3(modelview_matrix)));
+	glUniformMatrix3fv(program->getUniform("normal_matrix"), 1, 0, glm::value_ptr(normal_matrix));
 
 	glDrawArrays(GL_TRIANGLES, mesh.first, mesh.count);
 	for (unsigned int i=0; i<mesh.children.size(); ++i)
@@ -177,8 +184,9 @@ void GameManager::renderMeshRecursive(MeshPart& mesh, const std::shared_ptr<Prog
 void GameManager::render() {
 	//Get elapsed time
 	double elapsed = my_timer.elapsedAndRestart();
-	float rotate_degrees = static_cast<float>(elapsed) * 90.0f;
+	float rotate_degrees = (float) elapsed * 10.0f;
 	/*glClear clears the screen by setting the bitplane area of the window to values previouly selected by the 4 different GL_BUFFER_BIT.
+	  So the screen get set to the color glClearColor that ar blue in this program. Each time before we draw again, 
 	glClear(What buffer to be clear and sett back to preset values)*/
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	program->use();
@@ -190,6 +198,9 @@ void GameManager::render() {
 	model_matrix = glm::rotate(model_matrix, rotate_degrees, glm::vec3(1.0f, 1.0f, 1.0f));
 	glm::mat4 modelview_matrix = view_matrix*model_matrix;
 
+	//Use lighting as default
+	glUniform1i(program->getUniform("lighting"), 1);
+
 	//Render geometry
 	/**
 	  * FIXME3: Impement different rendering modes here
@@ -197,16 +208,55 @@ void GameManager::render() {
 	glBindVertexArray(vao);
 	switch (render_mode) {
 	case RENDERMODE_WIREFRAME:
+		/*glPolygonMode(face Specifies the polygons that mode applies to. Must be GL_FRONT_AND_BACK for front- and back-facing polygons. ,
+		mode Specifies how polygons will be rasterized. Accepted values are GL_POINT , GL_LINE , and GL_FILL . The initial value is GL_FILL for both front- and back-facing polygons.)*/
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		renderMeshRecursive(model->getMesh(), program, view_matrix, model_matrix);
 		break;
 	case RENDERMODE_HIDDEN_LINE:
+		//first, render filled polygons with an offset in negative z-direction
+		/*glCullFace(What GL capabiliti i want to use);
+		GL_BACk removes all triangels that you don't see infront of the view */
+		glCullFace(GL_BACK);
+		/*glPolygonMode(face Specifies the polygons that mode applies to. Must be GL_FRONT_AND_BACK for front- and back-facing polygons. ,
+		mode Specifies how polygons will be rasterized. Accepted values are GL_POINT , GL_LINE , and GL_FILL . The initial value is GL_FILL for both front- and back-facing polygons.)*/
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.1, 4.0);
+		//Render geometry to be offset here
+		renderMeshRecursive(model->getMesh(), program, view_matrix, model_matrix);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+
+		//then, render wireframe, without lighting
+		/*glPolygonMode(face Specifies the polygons that mode applies to. Must be GL_FRONT_AND_BACK for front- and back-facing polygons. ,
+		mode Specifies how polygons will be rasterized. Accepted values are GL_POINT , GL_LINE , and GL_FILL . The initial value is GL_FILL for both front- and back-facing polygons.)*/
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glUniform1i(program->getUniform("lighting"), 0);
+		break;
 	case RENDERMODE_FLAT:
+
+
+
+
+
+
+
+
+
+		break;
 	case RENDERMODE_PHONG:
+		/*glCullFace(What GL capabiliti i want to use);
+		GL_BACk removes all triangels that you don't see infront of the view */
+		glCullFace(GL_BACK);
+		/*glPolygonMode(face Specifies the polygons that mode applies to. Must be GL_FRONT_AND_BACK for front- and back-facing polygons. , 
+						mode Specifies how polygons will be rasterized. Accepted values are GL_POINT , GL_LINE , and GL_FILL . The initial value is GL_FILL for both front- and back-facing polygons.)*/
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		break;
 	default:
 		THROW_EXCEPTION("Rendermode not supported");
 	}
+
+	renderMeshRecursive(model->getMesh(), program, view_matrix, model_matrix);
 
 	glBindVertexArray(0);
 	CHECK_GL_ERROR();
